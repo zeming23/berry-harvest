@@ -38,6 +38,9 @@ jobs:
           echo "electron macOS OK"
           ffmpeg -version >/dev/null 2>&1 || brew install ffmpeg
 
+      - name: Log outbound IP (diagnosis, not berryhub)
+        run: curl -s --max-time 10 https://api.ipify.org && echo
+
       - name: Run harvest
         env:
           MAIL_AUTHCODE: ${{ secrets.MAIL_AUTHCODE }}
