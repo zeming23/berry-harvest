@@ -35,6 +35,9 @@ jobs:
           test -f node_modules/electron/dist/electron || node node_modules/electron/install.js
           test -f node_modules/electron/dist/electron || { echo "!! electron binary missing"; exit 1; }
           echo "electron binary OK"
+          # Linux SUID sandbox 修复 (chrome-sandbox 须 root:4755)
+          sudo chown root node_modules/electron/dist/chrome-sandbox || true
+          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox || true
           sudo apt-get update -y >/dev/null 2>&1 || true
           sudo apt-get install -y xvfb >/dev/null 2>&1 || true
 

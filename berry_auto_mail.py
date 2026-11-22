@@ -75,7 +75,7 @@ def start_electron(start_url="https://berryhub.org/"):
     electron = BASE / "node_modules" / "electron" / ("dist/electron.exe" if is_win else "dist/electron")
     if not electron.exists():
         raise RuntimeError(f"electron binary missing: {electron}")
-    env = dict(os.environ, ELECTRON_CDP_PORT=CDP_PORT)
+    env = dict(os.environ, ELECTRON_CDP_PORT=CDP_PORT, ELECTRON_DISABLE_SANDBOX="1")
     errlog = open(WORK / "electron-stderr.log", "w", encoding="utf-8")
     if is_win:
         proc = subprocess.Popen([str(electron), str(BASE / "electron-main.js"), start_url],
