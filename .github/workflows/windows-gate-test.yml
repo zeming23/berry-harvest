@@ -1,0 +1,27 @@
+name: windows-gate-test
+# 验证: 真实 Windows 云主机 + Electron 能否过雷池 (决定云端方案生死)
+on:
+  workflow_dispatch:
+jobs:
+  gate:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install deps
+        shell: bash
+        run: |
+          pip install --quiet playwright
+          npm install electron@44.7.0 --no-audit --no-fund
+          test -f node_modules/electron/dist/electron.exe || node node_modules/electron/install.js
+          test -f node_modules/electron/dist/electron.exe || { echo "!! electron missing"; exit 1; }
+          echo "electron.exe OK"
+      - name: Gate test
+        shell: bash
+        run: python windows_gate_test.py
