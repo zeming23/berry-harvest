@@ -203,6 +203,29 @@ try { patchGL(window.WebGLRenderingContext && WebGLRenderingContext.prototype); 
 try { patchGL(window.WebGL2RenderingContext && WebGL2RenderingContext.prototype); } catch (e) {}
 try { Object.defineProperty(navigator, 'platform', {get: () => 'Win32'}); } catch (e) {}
 try { Object.defineProperty(navigator, 'webdriver', {get: () => undefined}); } catch (e) {}
+try { Object.defineProperty(navigator, 'hardwareConcurrency', {get: () => 8}); } catch (e) {}
+try { Object.defineProperty(navigator, 'deviceMemory', {get: () => 8}); } catch (e) {}
+try { Object.defineProperty(screen, 'width', {get: () => 1920}); } catch (e) {}
+try { Object.defineProperty(screen, 'height', {get: () => 1080}); } catch (e) {}
+try { Object.defineProperty(screen, 'availWidth', {get: () => 1920}); } catch (e) {}
+try { Object.defineProperty(screen, 'availHeight', {get: () => 1040}); } catch (e) {}
+// AudioContext 指纹 (无声卡环境标记)
+try {
+  const AC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  if (AC) {
+    const origGetChannelData = AudioBuffer.prototype.getChannelData;
+    AudioBuffer.prototype.getChannelData = function (ch) {
+      const d = origGetChannelData.call(this, ch);
+      if (d.length === 45000 && d[0] === 0) { d[0] = 1e-7; }
+      return d;
+    };
+  }
+} catch (e) {}
+// 时区一致性 (Intl 由 TZ env 控制, 这里对齐 DST 偏移探测)
+try {
+  const dgo = Date.prototype.getTimezoneOffset;
+  Date.prototype.getTimezoneOffset = function () { return -480; };
+} catch (e) {}
 """
 
 
@@ -228,7 +251,8 @@ def wait_berryhub_ready(pg, tries=15):
             if "SafeLine" in txt or "错误拦截" in txt:
                 try:
                     iframes = len(pg.frames)
-                    log(f"雷池拦截门, 第{i+1}次尝试点击确认 (frames={iframes})")
+                    furls = [fr.url[:90] for fr in pg.frames[1:]]
+                    log(f"雷池拦截门, 第{i+1}次确认 (frames={iframes}, iframes={furls})")
                 except Exception:
                     log(f"雷池拦截门, 第{i+1}次尝试点击确认")
                 pg.evaluate('''() => { const b = [...document.querySelectorAll("button, a, div, span")]

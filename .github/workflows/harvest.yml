@@ -39,7 +39,8 @@ jobs:
           sudo chown root node_modules/electron/dist/chrome-sandbox || true
           sudo chmod 4755 node_modules/electron/dist/chrome-sandbox || true
           sudo apt-get update -y >/dev/null 2>&1 || true
-          sudo apt-get install -y xvfb sstp-client dnsutils >/dev/null 2>&1 || true
+          sudo apt-get install -y xvfb sstp-client dnsutils fonts-noto-cjk fonts-noto-color-emoji >/dev/null 2>&1 || true
+          sudo timedatectl set-timezone Asia/Shanghai 2>/dev/null || true
 
       - name: Start WARP proxy (better IP reputation for SafeLine)
         run: |
