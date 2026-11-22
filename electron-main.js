@@ -5,7 +5,10 @@ const { app, BrowserWindow } = require('electron');
 
 app.commandLine.appendSwitch('remote-debugging-port', process.env.ELECTRON_CDP_PORT || '9223');
 app.commandLine.appendSwitch('no-sandbox');
-app.disableHardwareAcceleration();
+// 软件 WebGL (SwiftShader): 无 GPU 的 CI 环境补全 canvas/WebGL 指纹
+app.commandLine.appendSwitch('use-gl', 'angle');
+app.commandLine.appendSwitch('use-angle', 'swiftshader');
+app.commandLine.appendSwitch('enable-unsafe-swiftshader');
 
 app.whenReady().then(() => {
   const url = process.argv.find(a => a.startsWith('http')) || 'https://berryhub.org/';

@@ -79,10 +79,11 @@ def start_electron(start_url="https://berryhub.org/"):
     errlog = open(WORK / "electron-stderr.log", "w", encoding="utf-8")
     if is_win:
         proc = subprocess.Popen([str(electron), str(BASE / "electron-main.js"), start_url],
-                                env=env, stderr=errlog, creationflags=subprocess.CREATE_NO_WINDOW)
+                                env=env, stderr=errlog, creationflags=subprocess.CREATE_NO_WINDOW,
+                                start_new_session=True)
     else:
         proc = subprocess.Popen(["xvfb-run", "-a", str(electron), str(BASE / "electron-main.js"), start_url],
-                                env=env, stderr=errlog)
+                                env=env, stderr=errlog, start_new_session=True)
     # 等 CDP 起来
     import urllib.request
     for i in range(90):
@@ -113,17 +114,24 @@ def connect_page():
 
 
 def wait_berryhub_ready(pg, tries=15):
-    """等雷池放行、BerryHub 页面就绪"""
+    """等雷池放行、BerryHub 页面就绪; 遇拦截门自动点「确认」"""
     for i in range(tries):
         try:
             t = pg.title() or ""
             if "BerryHub" in t:
                 log(f"berryhub 页面就绪 ({i+1} 轮)")
                 return True
+            txt = pg.evaluate('document.body.innerText') or ""
+            if "SafeLine" in txt or "错误拦截" in txt:
+                log(f"雷池拦截门, 第{i+1}次尝试点击确认")
+                pg.evaluate('''() => { const b = [...document.querySelectorAll("button, a, div, span")]
+                    .find(e => (e.textContent || '').trim() === "确认");
+                    if (b) b.click(); }''')
         except Exception:
             pass
         time.sleep(3)
-    raise RuntimeError(f"berryhub 未就绪, 当前标题={pg.title()!r} 文本={(pg.evaluate('document.body.innerText') or '')[:120]!r}")
+    raise RuntimeError(f"berryhub 未就绪(雷池未放行), 文本={(pg.evaluate('document.body.innerText') or '')[:150]!r}")
+
 
 
 def api_posts(pg):
@@ -433,8 +441,12 @@ def main():
         if pw:
             try: pw.stop()
             except Exception: pass
-        try: proc.kill()
-        except Exception: pass
+        try:
+            import signal
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        except Exception:
+            try: proc.kill()
+            except Exception: pass
 
 
 if __name__ == "__main__":
