@@ -41,6 +41,20 @@ jobs:
           sudo apt-get update -y >/dev/null 2>&1 || true
           sudo apt-get install -y xvfb >/dev/null 2>&1 || true
 
+      - name: Start WARP proxy (better IP reputation for SafeLine)
+        run: |
+          curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --dearmor --yes -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg || true
+          echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+          sudo apt-get update -qq || true
+          sudo apt-get install -y cloudflare-warp || echo "(warp 包不可用, 降级直连)"
+          sudo systemctl start warp-svc || true
+          sleep 2
+          warp-cli --accept-tos registration new || warp-cli --accept-tos register || true
+          warp-cli --accept-tos mode proxy || true
+          warp-cli --accept-tos connect || true
+          sleep 3
+          warp-cli --accept-tos status || true
+
       - name: Run harvest
         env:
           MAIL_AUTHCODE: ${{ secrets.MAIL_AUTHCODE }}

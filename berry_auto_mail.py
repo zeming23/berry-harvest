@@ -70,12 +70,27 @@ def sh(cmd, timeout=600, quiet=False, **kw):
 
 # ─────────────────── Electron / CDP ───────────────────
 
+def warp_proxy_available(port=40000):
+    """WARP 代理可用性探测 (socks5 ping 不握手, 只看端口)"""
+    try:
+        s = socket.create_connection(("127.0.0.1", port), timeout=3)
+        s.close()
+        return True
+    except Exception:
+        return False
+
+
 def start_electron(start_url="https://berryhub.org/"):
     is_win = os.name == "nt"
     electron = BASE / "node_modules" / "electron" / ("dist/electron.exe" if is_win else "dist/electron")
     if not electron.exists():
         raise RuntimeError(f"electron binary missing: {electron}")
     env = dict(os.environ, ELECTRON_CDP_PORT=CDP_PORT, ELECTRON_DISABLE_SANDBOX="1")
+    if warp_proxy_available():
+        env["ELECTRON_PROXY"] = "socks5://127.0.0.1:40000"
+        log("Electron 经 WARP socks5 代理访问 berryhub")
+    else:
+        log("WARP 代理不可用, Electron 直连 berryhub")
     errlog = open(WORK / "electron-stderr.log", "w", encoding="utf-8")
     if is_win:
         proc = subprocess.Popen([str(electron), str(BASE / "electron-main.js"), start_url],

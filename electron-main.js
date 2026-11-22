@@ -10,6 +10,11 @@ app.commandLine.appendSwitch('use-gl', 'angle');
 app.commandLine.appendSwitch('use-angle', 'swiftshader');
 app.commandLine.appendSwitch('enable-unsafe-swiftshader');
 
+// 可选代理 (云端经 WARP socks5 访问 berryhub, 换 IP 信誉)
+if (process.env.ELECTRON_PROXY) {
+  app.commandLine.appendSwitch('proxy-server', process.env.ELECTRON_PROXY);
+}
+
 app.whenReady().then(() => {
   const url = process.argv.find(a => a.startsWith('http')) || 'https://berryhub.org/';
   const win = new BrowserWindow({
