@@ -147,7 +147,7 @@ def warp_proxy_available(port=40000):
         return False
 
 
-def start_electron(start_url="https://berryhub.org/"):
+def start_electron(start_url="https://berryhub.org/", force_no_proxy=False):
     is_win = os.name == "nt"
     is_mac = sys.platform == "darwin"
     if is_mac:
@@ -159,12 +159,14 @@ def start_electron(start_url="https://berryhub.org/"):
     env = dict(os.environ, ELECTRON_CDP_PORT=CDP_PORT, ELECTRON_DISABLE_SANDBOX="1")
     if not is_mac:  # macOS 真机用原生 UA/真 GPU, 不做任何伪装
         env["ELECTRON_UA"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.130 Safari/537.36"
-    if SSTP_STATE["active"] and SSTP_STATE["pin_ip"]:
+    if force_no_proxy:
+        log("Electron 直连 berryhub (强制, WARP 已降级)")
+    elif SSTP_STATE["active"] and SSTP_STATE["pin_ip"]:
         env["ELECTRON_RESOLVER_MAP"] = f"MAP berryhub.org {SSTP_STATE['pin_ip']}"
         log(f"Electron 直连(经住宅路由) berryhub → {SSTP_STATE['pin_ip']}")
     elif warp_proxy_available():
         env["ELECTRON_PROXY"] = "socks5://127.0.0.1:40000"
-        log("Electron 经 WARP socks5 代理访问 berryhub")
+        log("Electron 经 WARP socks5 代理访问 berryhub (池IP不接触berryhub)")
     else:
         log("WARP 代理不可用, Electron 直连 berryhub")
     errlog = open(WORK / "electron-stderr.log", "w", encoding="utf-8")
@@ -506,14 +508,41 @@ def send_mail(subject, body, attach=None):
 
 def main():
     sstp_proc = None
-    if os.name != "nt":
+    if os.name != "nt" and sys.platform != "darwin":
         sstp_proc = dial_sstp_and_route()
-    proc = start_electron()
+    cookies_f = STATE / "berry-cookies.json"
+    have_cookies = cookies_f.exists()
+    start_url = "about:blank" if have_cookies else "https://berryhub.org/"
+    proc = start_electron(start_url)
     pw = browser = None
     try:
         pw, browser, ctx, pg = connect_page()
+        if have_cookies:
+            try:
+                ctx.add_cookies(json.loads(cookies_f.read_text(encoding="utf-8")))
+                log("已载入上次存档的通行 cookie")
+            except Exception as e:
+                log(f"cookie 载入失败(忽略): {e}")
         pg.goto("https://berryhub.org/", timeout=40000)
-        wait_berryhub_ready(pg)
+        try:
+            wait_berryhub_ready(pg)
+        except RuntimeError as gate_err:
+            used_proxy = warp_proxy_available()
+            kill_tree(proc)
+            if not used_proxy:
+                raise
+            log("WARP 出口被拦, 降级直连重试")
+            proc = start_electron("https://berryhub.org/", force_no_proxy=True)
+            pw.stop()
+            pw, browser, ctx, pg = connect_page()
+            pg.goto("https://berryhub.org/", timeout=40000)
+            wait_berryhub_ready(pg)
+        try:
+            cks = ctx.cookies("https://berryhub.org")
+            cookies_f.write_text(json.dumps(cks), encoding="utf-8")
+            log(f"通行 cookie 已存档 ({len(cks)} 条)")
+        except Exception as e:
+            log(f"cookie 存档失败(忽略): {e}")
 
         # 1) 侦察最新帖
         r = api_posts(pg)
