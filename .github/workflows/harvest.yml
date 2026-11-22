@@ -1,0 +1,56 @@
+name: berry-harvest
+# BerryHub 公益节点每日自动收割: 侦察→下载视频→OCR密码→解锁→拉订阅→测活→邮件投递
+# 北京时间每天 20:05 (UTC 12:05) 触发; 帖子 20:00 发布, 有效期 28h
+on:
+  schedule:
+    - cron: '5 12 * * *'
+  workflow_dispatch:
+    inputs:
+      test:
+        description: '测试模式(不发邮件)'
+        required: false
+        default: ''
+permissions:
+  contents: write
+jobs:
+  harvest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          pip install --quiet playwright rapidocr-onnxruntime yt-dlp
+          npm install electron@44.7.0 --no-audit --no-fund
+          sudo apt-get update -y >/dev/null 2>&1 || true
+          sudo apt-get install -y xvfb >/dev/null 2>&1 || true
+
+      - name: Run harvest
+        env:
+          MAIL_AUTHCODE: ${{ secrets.MAIL_AUTHCODE }}
+          MAIL_TO: '719794448@qq.com'
+          TEST_MODE: ${{ github.event.inputs.test }}
+        run: |
+          xvfb-run -a python berry_auto_mail.py 2>&1 | tee harvest_run.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Commit state (keep workflow alive)
+        if: always()
+        run: |
+          git config user.name "berry-bot"
+          git config user.email "719794448@qq.com"
+          mkdir -p state
+          echo "harvest $(date -u '+%F %T') exit=$?" >> state/heartbeat.txt
+          tail -20 state/heartbeat.txt > state/heartbeat.tmp && mv state/heartbeat.tmp state/heartbeat.txt
+          git add state/
+          git diff --cached --quiet || git commit -m "state update $(date -u '+%F')"
+          git push https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }} HEAD:${{ github.ref_name }} || echo "(push跳过)"
