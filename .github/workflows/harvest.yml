@@ -2,7 +2,9 @@ name: berry-harvest
 # BerryHub 公益节点每日自动收割: 侦察→下载视频→OCR密码→解锁→拉订阅→测活→邮件投递
 # 北京时间每天 20:05 (UTC 12:05) 触发; 帖子 20:00 发布, 有效期 28h
 on:
-  # 定时已停用: 雷池 WAF 击穿云端浏览器(实测8轮), 生产方案=本机守望 berry-watch.py
+  schedule:
+    - cron: '5 12 * * *'   # 北京 20:05; macOS 真机首次接触已验证通过(6s+wp-json 200)
+                             # ⚠️ 雷池按频率限流: 每天仅此一次访问, 失败靠次日重试, 勿手动加跑
   workflow_dispatch:
     inputs:
       test:
