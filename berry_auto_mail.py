@@ -68,6 +68,71 @@ def sh(cmd, timeout=600, quiet=False, **kw):
     return r.returncode, (r.stdout or "")
 
 
+
+# ── VPN Gate 住宅 SSTP 路由 (雷池对数据中心 IP 强制人工验证, 住宅 IP 直接过) ──
+SSTP_NODES = [
+    ("vpn267947139.opengw.net", 1663),   # JP SoftBank 锚点
+    ("vpn210599978.opengw.net", 995),    # KR KT 锚点
+    ("vpn547433109.opengw.net", 995),    # JP KDDI
+    ("kanratown.opengw.net", 992),       # JP NTT
+    ("vpn177463451.opengw.net", 995),    # KR SKB
+    ("vpn313325973.opengw.net", 995),    # KR LG
+    ("vpn473197536.opengw.net", 1475),   # US Spectrum
+]
+SSTP_STATE = {"active": False, "pin_ip": None, "dev": "ppp9"}
+
+
+def dial_sstp_and_route(domain="berryhub.org"):
+    """SSTP 拨号住宅节点, 把 domain 的 IPv4 流量路由过去; 成功返回进程"""
+    import shutil, re as _re
+    if os.name == "nt" or not shutil.which("sstpc"):
+        log("无 sstpc, 跳过住宅路由")
+        return None
+    for host, port in SSTP_NODES:
+        proc = None
+        try:
+            log(f"SSTP 拨号 {host}:{port} (vpn/vpn)")
+            proc = subprocess.Popen(
+                ["sudo", "sstpc", "--cert-warn", f"{host}:{port}",
+                 "usepeerdns", "require-mschap-v2", "refuse-eap", "noauth",
+                 "user", "vpn", "password", "vpn", "unit", "9", "nodetach"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                start_new_session=True)
+            time.sleep(10)
+            chk = subprocess.run(["ip", "link", "show", SSTP_STATE["dev"]],
+                                 capture_output=True, text=True)
+            if chk.returncode != 0:
+                raise RuntimeError("ppp 未建立")
+            r = subprocess.run(["dig", "+short", domain, "A"], capture_output=True, text=True)
+            ips = [l.strip() for l in r.stdout.splitlines()
+                   if _re.match(r"^\d+\.\d+\.\d+\.\d+$", l.strip())]
+            if not ips:
+                raise RuntimeError(f"{domain} 无 A 记录")
+            for ip in ips:
+                subprocess.run(["sudo", "ip", "route", "add", f"{ip}/32", "dev", SSTP_STATE["dev"]],
+                               capture_output=True)
+            pin = ips[0]
+            ver = subprocess.run(["curl", "-s", "--max-time", "15", "--interface",
+                                  SSTP_STATE["dev"], "https://api.ipify.org"],
+                                 capture_output=True, text=True)
+            exit_ip = ver.stdout.strip()
+            if not exit_ip:
+                raise RuntimeError("ppp 出口验证失败")
+            log(f"住宅路由就绪: {domain} → {pin} via {SSTP_STATE['dev']}, 出口IP {exit_ip}")
+            SSTP_STATE.update(active=True, pin_ip=pin)
+            return proc
+        except Exception as e:
+            log(f"SSTP {host}:{port} 失败: {e}")
+            if proc:
+                try:
+                    import signal
+                    os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+                except Exception:
+                    proc.kill()
+            time.sleep(2)
+    return None
+
+
 # ─────────────────── Electron / CDP ───────────────────
 
 def warp_proxy_available(port=40000):
@@ -86,7 +151,10 @@ def start_electron(start_url="https://berryhub.org/"):
     if not electron.exists():
         raise RuntimeError(f"electron binary missing: {electron}")
     env = dict(os.environ, ELECTRON_CDP_PORT=CDP_PORT, ELECTRON_DISABLE_SANDBOX="1")
-    if warp_proxy_available():
+    if SSTP_STATE["active"] and SSTP_STATE["pin_ip"]:
+        env["ELECTRON_RESOLVER_MAP"] = f"MAP berryhub.org {SSTP_STATE['pin_ip']}"
+        log(f"Electron 直连(经住宅路由) berryhub → {SSTP_STATE['pin_ip']}")
+    elif warp_proxy_available():
         env["ELECTRON_PROXY"] = "socks5://127.0.0.1:40000"
         log("Electron 经 WARP socks5 代理访问 berryhub")
     else:
@@ -338,6 +406,9 @@ def send_mail(subject, body, attach=None):
 # ─────────────────── 主流程 ───────────────────
 
 def main():
+    sstp_proc = None
+    if os.name != "nt":
+        sstp_proc = dial_sstp_and_route()
     proc = start_electron()
     pw = browser = None
     try:
@@ -462,6 +533,12 @@ def main():
         except Exception:
             try: proc.kill()
             except Exception: pass
+        if sstp_proc:
+            try:
+                import signal
+                os.killpg(os.getpgid(sstp_proc.pid), signal.SIGTERM)
+            except Exception:
+                sstp_proc.kill()
 
 
 if __name__ == "__main__":

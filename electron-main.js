@@ -14,6 +14,9 @@ app.commandLine.appendSwitch('enable-unsafe-swiftshader');
 if (process.env.ELECTRON_PROXY) {
   app.commandLine.appendSwitch('proxy-server', process.env.ELECTRON_PROXY);
 }
+if (process.env.ELECTRON_RESOLVER_MAP) {
+  app.commandLine.appendSwitch('host-resolver-rules', process.env.ELECTRON_RESOLVER_MAP);
+}
 
 app.whenReady().then(() => {
   const url = process.argv.find(a => a.startsWith('http')) || 'https://berryhub.org/';
