@@ -41,7 +41,7 @@ jobs:
       - name: Run harvest
         env:
           MAIL_AUTHCODE: ${{ secrets.MAIL_AUTHCODE }}
-          MAIL_TO: '719794448@qq.com'
+          MAIL_TO: '1460590568@qq.com'
           BARK_KEY: ${{ secrets.BARK_KEY }}
           DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
           TEST_MODE: ${{ github.event.inputs.test }}
