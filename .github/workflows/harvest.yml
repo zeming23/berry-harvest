@@ -38,6 +38,20 @@ jobs:
           echo "electron macOS OK"
           ffmpeg -version >/dev/null 2>&1 || brew install ffmpeg
 
+      - name: Start WARP (IP rotation, protects pool reputation)
+        run: |
+          brew install --cask cloudflare-warp 2>&1 | tail -2 || echo "(cask 安装失败, 直连模式)"
+          sleep 6
+          WCLI="/Applications/Cloudflare WARP.app/Contents/MacOS/warp-cli"
+          [ -x "$WCLI" ] || WCLI="$(which warp-cli 2>/dev/null || echo /Applications/Cloudflare\ WARP.app/Contents/Resources/warp-cli)"
+          echo "warp-cli: $WCLI"
+          "$WCLI" --accept-tos registration new 2>&1 | tail -1 || "$WCLI" --accept-tos register 2>&1 | tail -1 || true
+          "$WCLI" --accept-tos mode proxy 2>&1 | tail -1 || true
+          "$WCLI" --accept-tos connect 2>&1 | tail -1 || true
+          sleep 6
+          "$WCLI" --accept-tos status 2>&1 | tail -1 || true
+          WIP=$(curl -s --max-time 15 --socks5-hostname 127.0.0.1:40000 https://api.ipify.org) && echo "WARP egress IP: $WIP" || echo "(WARP 未就绪, 将直连)"
+
       - name: Log outbound IP (diagnosis, not berryhub)
         run: curl -s --max-time 10 https://api.ipify.org && echo
 
