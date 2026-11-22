@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Windows 云主机雷池门测试: Electron 直载 berryhub, 轮询标题"""
-import json, os, subprocess, time, urllib.request
+import json, os, subprocess, sys, time, urllib.request
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 exe = os.path.abspath("node_modules/electron/dist/electron.exe")
 main_js = os.path.abspath("electron-main.js")
