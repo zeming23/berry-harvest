@@ -25,12 +25,16 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install dependencies
         run: |
           pip install --quiet playwright rapidocr-onnxruntime yt-dlp
           npm install electron@44.7.0 --no-audit --no-fund
+          # electron 二进制可能被 npm 静默跳过, 显式补下载并强制校验
+          test -f node_modules/electron/dist/electron || node node_modules/electron/install.js
+          test -f node_modules/electron/dist/electron || { echo "!! electron binary missing"; exit 1; }
+          echo "electron binary OK"
           sudo apt-get update -y >/dev/null 2>&1 || true
           sudo apt-get install -y xvfb >/dev/null 2>&1 || true
 

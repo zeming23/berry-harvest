@@ -73,22 +73,34 @@ def sh(cmd, timeout=600, quiet=False, **kw):
 def start_electron(start_url="https://berryhub.org/"):
     is_win = os.name == "nt"
     electron = BASE / "node_modules" / "electron" / ("dist/electron.exe" if is_win else "dist/electron")
+    if not electron.exists():
+        raise RuntimeError(f"electron binary missing: {electron}")
     env = dict(os.environ, ELECTRON_CDP_PORT=CDP_PORT)
+    errlog = open(WORK / "electron-stderr.log", "w", encoding="utf-8")
     if is_win:
         proc = subprocess.Popen([str(electron), str(BASE / "electron-main.js"), start_url],
-                                env=env, creationflags=subprocess.CREATE_NO_WINDOW)
+                                env=env, stderr=errlog, creationflags=subprocess.CREATE_NO_WINDOW)
     else:
-        proc = subprocess.Popen(["xvfb-run", "-a", str(electron), str(BASE / "electron-main.js"), start_url], env=env)
+        proc = subprocess.Popen(["xvfb-run", "-a", str(electron), str(BASE / "electron-main.js"), start_url],
+                                env=env, stderr=errlog)
     # 等 CDP 起来
     import urllib.request
-    for _ in range(60):
+    for i in range(90):
         try:
             with urllib.request.urlopen(f"http://127.0.0.1:{CDP_PORT}/json/version", timeout=2) as r:
                 json.loads(r.read().decode())
             return proc
         except Exception:
+            if i == 30:
+                try:
+                    errlog.flush()
+                    c = (WORK / "electron-stderr.log").read_text(encoding="utf-8", errors="replace")[-600:]
+                    if c.strip():
+                        log(f"electron stderr: {c}")
+                except Exception:
+                    pass
             time.sleep(1)
-    raise RuntimeError("Electron CDP 未在 60s 内就绪")
+    raise RuntimeError("Electron CDP 未在 90s 内就绪")
 
 
 def connect_page():
