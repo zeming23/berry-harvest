@@ -47,6 +47,8 @@ WORK.mkdir(exist_ok=True)
 UA_SUB = "clash-verge/v2.0.0"
 MAIL_TO = os.environ.get("MAIL_TO", "719794448@qq.com")
 MAIL_AUTHCODE = os.environ.get("MAIL_AUTHCODE", "")
+BARK_KEY = os.environ.get("BARK_KEY", "")            # iPhone Bark 推送
+DINGTALK_WEBHOOK = os.environ.get("DINGTALK_WEBHOOK", "")  # 钉钉群机器人 webhook
 TEST_MODE = bool(os.environ.get("TEST_MODE"))
 CDP_PORT = os.environ.get("CDP_PORT", "9223")
 DEADLINE = time.time() + 40 * 60          # 视频等待窗口 (job 总超时 50min)
@@ -437,6 +439,43 @@ def test_nodes(uris, out_dir):
 
 # ─────────────────── 邮件 ───────────────────
 
+def notify(title, body):
+    """多通道通知: Bark > 钉钉 > 邮件; 全缺则落盘"""
+    if TEST_MODE:
+        log(f"[TEST_MODE] 跳过通知: {title}")
+        return False
+    if BARK_KEY:
+        try:
+            import urllib.request
+            req = urllib.request.Request(
+                "https://api.day.app/push",
+                data=json.dumps({"device_key": BARK_KEY, "title": title[:60],
+                                 "body": body[:4000], "group": "BerryHub",
+                                 "sound": "bell"}).encode(),
+                headers={"Content-Type": "application/json; charset=utf-8"}, method="POST")
+            with urllib.request.urlopen(req, timeout=20) as r:
+                out = json.loads(r.read().decode())
+            log(f"Bark push: {out.get('code')}")
+            return True
+        except Exception as e:
+            log(f"Bark fail: {e}")
+    if DINGTALK_WEBHOOK:
+        try:
+            import urllib.request
+            req = urllib.request.Request(
+                DINGTALK_WEBHOOK,
+                data=json.dumps({"msgtype": "markdown",
+                                 "markdown": {"title": title[:60],
+                                              "text": f"### {title}" + chr(10)*2 + body}}).encode(),
+                headers={"Content-Type": "application/json; charset=utf-8"}, method="POST")
+            with urllib.request.urlopen(req, timeout=20) as r:
+                out = json.loads(r.read().decode())
+            log(f"DingTalk push: {out}")
+            return True
+        except Exception as e:
+            log(f"DingTalk fail: {e}")
+    return send_mail(title, body, None)
+
 def send_mail(subject, body, attach=None):
     if TEST_MODE:
         log(f"[TEST_MODE] 跳过发信: {subject}")
@@ -566,7 +605,7 @@ def main():
                     f"节点总数: {len(uris)} | TCP存活: {n_alive}\n\n"
                     f"导入方法: Shadowrocket/Clash 添加订阅 → 粘贴上方链接\n"
                     f"注意: 请清理旧订阅, 频繁刷新失效订阅会触发封IP")
-        send_mail(subject, body, attach=str(out_dir / "uris.txt") if uris else None)
+        notify(subject, body)
 
         # 9) 状态落盘
         (STATE / "last-post.txt").write_text(link, encoding="utf-8")
@@ -579,8 +618,8 @@ def main():
         log(f"!! 失败: {e}")
         traceback.print_exc()
         try:
-            send_mail(f"BerryHub 收割失败 {time.strftime('%m-%d %H:%M')}",
-                      f"失败原因: {e}\n\n详见 Actions 日志。", None)
+            notify(f"BerryHub 收割失败 {time.strftime('%m-%d %H:%M')}",
+                      f"失败原因: {e}\n\n详见 Actions 日志。")
         except Exception as me:
             log(f"(失败邮件也发不出: {me})")
         return 1
