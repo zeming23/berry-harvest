@@ -13,7 +13,7 @@ permissions:
   contents: write
 jobs:
   harvest:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
@@ -30,16 +30,11 @@ jobs:
         run: |
           pip install --quiet playwright rapidocr-onnxruntime yt-dlp
           npm install electron@44.7.0 --no-audit --no-fund
-          # electron 二进制可能被 npm 静默跳过, 显式补下载并强制校验
-          test -f node_modules/electron/dist/electron || node node_modules/electron/install.js
-          test -f node_modules/electron/dist/electron || { echo "!! electron binary missing"; exit 1; }
-          echo "electron binary OK"
-          # Linux SUID sandbox 修复 (chrome-sandbox 须 root:4755)
-          sudo chown root node_modules/electron/dist/chrome-sandbox || true
-          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox || true
-          sudo apt-get update -y >/dev/null 2>&1 || true
-          sudo apt-get install -y xvfb sstp-client dnsutils fonts-noto-cjk fonts-noto-color-emoji >/dev/null 2>&1 || true
-          sudo timedatectl set-timezone Asia/Shanghai 2>/dev/null || true
+          # 二进制可能被 npm 静默跳过, 显式补下载并强制校验
+          test -d node_modules/electron/dist/Electron.app || node node_modules/electron/install.js
+          test -d node_modules/electron/dist/Electron.app || { echo "!! electron binary missing"; exit 1; }
+          echo "electron macOS OK"
+          ffmpeg -version >/dev/null 2>&1 || brew install ffmpeg
 
       - name: Start WARP proxy (better IP reputation for SafeLine)
         run: |
@@ -60,8 +55,10 @@ jobs:
           MAIL_AUTHCODE: ${{ secrets.MAIL_AUTHCODE }}
           MAIL_TO: '719794448@qq.com'
           TEST_MODE: ${{ github.event.inputs.test }}
+          ELECTRON_NO_SPOOF: '1'
+          ELECTRON_CDP_PORT: '9223'
         run: |
-          xvfb-run -a python berry_auto_mail.py 2>&1 | tee harvest_run.log
+          python berry_auto_mail.py 2>&1 | tee harvest_run.log
           exit ${PIPESTATUS[0]}
 
       - name: Commit state (keep workflow alive)

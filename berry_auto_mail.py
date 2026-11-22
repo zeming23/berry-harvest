@@ -147,11 +147,16 @@ def warp_proxy_available(port=40000):
 
 def start_electron(start_url="https://berryhub.org/"):
     is_win = os.name == "nt"
-    electron = BASE / "node_modules" / "electron" / ("dist/electron.exe" if is_win else "dist/electron")
+    is_mac = sys.platform == "darwin"
+    if is_mac:
+        electron = BASE / "node_modules" / "electron" / "dist/Electron.app/Contents/MacOS/Electron"
+    else:
+        electron = BASE / "node_modules" / "electron" / ("dist/electron.exe" if is_win else "dist/electron")
     if not electron.exists():
         raise RuntimeError(f"electron binary missing: {electron}")
-    env = dict(os.environ, ELECTRON_CDP_PORT=CDP_PORT, ELECTRON_DISABLE_SANDBOX="1",
-               ELECTRON_UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.130 Safari/537.36")
+    env = dict(os.environ, ELECTRON_CDP_PORT=CDP_PORT, ELECTRON_DISABLE_SANDBOX="1")
+    if not is_mac:  # macOS 真机用原生 UA/真 GPU, 不做任何伪装
+        env["ELECTRON_UA"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.130 Safari/537.36"
     if SSTP_STATE["active"] and SSTP_STATE["pin_ip"]:
         env["ELECTRON_RESOLVER_MAP"] = f"MAP berryhub.org {SSTP_STATE['pin_ip']}"
         log(f"Electron 直连(经住宅路由) berryhub → {SSTP_STATE['pin_ip']}")
@@ -165,6 +170,9 @@ def start_electron(start_url="https://berryhub.org/"):
         proc = subprocess.Popen([str(electron), str(BASE / "electron-main.js"), start_url],
                                 env=env, stderr=errlog, creationflags=subprocess.CREATE_NO_WINDOW,
                                 start_new_session=True)
+    elif is_mac:
+        proc = subprocess.Popen([str(electron), str(BASE / "electron-main.js"), start_url],
+                                env=env, stderr=errlog, start_new_session=True)
     else:
         proc = subprocess.Popen(["xvfb-run", "-a", str(electron), str(BASE / "electron-main.js"), start_url],
                                 env=env, stderr=errlog, start_new_session=True)
@@ -234,7 +242,8 @@ def connect_page():
     pw = sync_playwright().start()
     browser = pw.chromium.connect_over_cdp(f"http://127.0.0.1:{CDP_PORT}")
     ctx = browser.contexts[0]
-    ctx.add_init_script(FINGERPRINT_SPOOF_JS)   # 伪装必须在雷池挑战 JS 之前生效
+    if not os.environ.get("ELECTRON_NO_SPOOF"):   # macOS 真机无需伪装(注入反而触发检测)
+        ctx.add_init_script(FINGERPRINT_SPOOF_JS)   # 伪装必须在雷池挑战 JS 之前生效
     pg = ctx.pages[0] if ctx.pages else ctx.new_page()
     return pw, browser, ctx, pg
 
