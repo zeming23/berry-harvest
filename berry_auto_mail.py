@@ -527,11 +527,8 @@ def main():
         if link == last:
             log("无新帖, 结束")
             notify("BerryHub 今日无新帖, 系统正常",
-                   f"今天 BerryHub 没有发布新一期(它自己偶尔跳过, 如 11-21)。
-
-"
-                   f"最近一次成功收割: {(STATE / 'last-harvest.json').read_text(encoding='utf-8')[:200] if (STATE / 'last-harvest.json').exists() else '尚无'}
-"
+                   f"今天 BerryHub 没有发布新一期(它自己偶尔跳过, 如 11-21)。" + chr(10)*2 +
+                   f"最近一次成功收割: {(STATE / 'last-harvest.json').read_text(encoding='utf-8')[:200] if (STATE / 'last-harvest.json').exists() else '尚无'}" + chr(10) +
                    f"系统每日 20:05 自动巡检, 无需任何操作。")
             return 0
         log(f"发现新帖! 处理 {link}")
