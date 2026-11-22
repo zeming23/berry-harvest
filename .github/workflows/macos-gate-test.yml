@@ -1,0 +1,27 @@
+name: macos-gate-test
+# 验证: macOS M系列真机(真Apple GPU) + Electron 能否过雷池
+on:
+  workflow_dispatch:
+jobs:
+  gate:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    env:
+      TZ: Asia/Shanghai
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install deps
+        run: |
+          pip install --quiet playwright
+          npm install electron@44.7.0 --no-audit --no-fund
+          ls node_modules/electron/dist/ | head -5
+          test -d node_modules/electron/dist/Electron.app || { echo "!! electron missing"; exit 1; }
+          echo "electron macOS OK"
+      - name: Gate test
+        run: python macos_gate_test.py

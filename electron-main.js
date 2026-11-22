@@ -5,10 +5,12 @@ const { app, BrowserWindow } = require('electron');
 
 app.commandLine.appendSwitch('remote-debugging-port', process.env.ELECTRON_CDP_PORT || '9223');
 app.commandLine.appendSwitch('no-sandbox');
-// 软件 WebGL (SwiftShader): 无 GPU 的 CI 环境补全 canvas/WebGL 指纹
-app.commandLine.appendSwitch('use-gl', 'angle');
-app.commandLine.appendSwitch('use-angle', 'swiftshader');
-app.commandLine.appendSwitch('enable-unsafe-swiftshader');
+// 软件 WebGL (SwiftShader): 仅 Linux 无 GPU runner 需要; macOS 用真 GPU
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('use-gl', 'angle');
+  app.commandLine.appendSwitch('use-angle', 'swiftshader');
+  app.commandLine.appendSwitch('enable-unsafe-swiftshader');
+}
 
 // 可选代理 (云端经 WARP socks5 访问 berryhub, 换 IP 信誉)
 if (process.env.ELECTRON_PROXY) {
