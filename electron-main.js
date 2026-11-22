@@ -19,7 +19,10 @@ if (process.env.ELECTRON_RESOLVER_MAP) {
 }
 
 app.whenReady().then(() => {
-  const url = process.argv.find(a => a.startsWith('http')) || 'https://berryhub.org/';
+  const url = process.argv.find(a => a.startsWith('http')) || 'about:blank';
+if (process.env.ELECTRON_UA) {
+  app.commandLine.appendSwitch('user-agent', process.env.ELECTRON_UA);
+}
   const win = new BrowserWindow({
     show: false,
     width: 1366,

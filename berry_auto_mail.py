@@ -150,7 +150,8 @@ def start_electron(start_url="https://berryhub.org/"):
     electron = BASE / "node_modules" / "electron" / ("dist/electron.exe" if is_win else "dist/electron")
     if not electron.exists():
         raise RuntimeError(f"electron binary missing: {electron}")
-    env = dict(os.environ, ELECTRON_CDP_PORT=CDP_PORT, ELECTRON_DISABLE_SANDBOX="1")
+    env = dict(os.environ, ELECTRON_CDP_PORT=CDP_PORT, ELECTRON_DISABLE_SANDBOX="1",
+               ELECTRON_UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.130 Safari/537.36")
     if SSTP_STATE["active"] and SSTP_STATE["pin_ip"]:
         env["ELECTRON_RESOLVER_MAP"] = f"MAP berryhub.org {SSTP_STATE['pin_ip']}"
         log(f"Electron 直连(经住宅路由) berryhub → {SSTP_STATE['pin_ip']}")
@@ -187,11 +188,30 @@ def start_electron(start_url="https://berryhub.org/"):
     raise RuntimeError("Electron CDP 未在 90s 内就绪")
 
 
+FINGERPRINT_SPOOF_JS = """
+// WebGL renderer 伪装 (SwiftShader 字符串是机器人标记)
+const patchGL = (proto) => {
+  if (!proto) return;
+  const orig = proto.getParameter;
+  proto.getParameter = function (p) {
+    if (p === 37445) return 'Google Inc. (NVIDIA)';
+    if (p === 37446) return 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)';
+    return orig.call(this, p);
+  };
+};
+try { patchGL(window.WebGLRenderingContext && WebGLRenderingContext.prototype); } catch (e) {}
+try { patchGL(window.WebGL2RenderingContext && WebGL2RenderingContext.prototype); } catch (e) {}
+try { Object.defineProperty(navigator, 'platform', {get: () => 'Win32'}); } catch (e) {}
+try { Object.defineProperty(navigator, 'webdriver', {get: () => undefined}); } catch (e) {}
+"""
+
+
 def connect_page():
     from playwright.sync_api import sync_playwright
     pw = sync_playwright().start()
     browser = pw.chromium.connect_over_cdp(f"http://127.0.0.1:{CDP_PORT}")
     ctx = browser.contexts[0]
+    ctx.add_init_script(FINGERPRINT_SPOOF_JS)   # 伪装必须在雷池挑战 JS 之前生效
     pg = ctx.pages[0] if ctx.pages else ctx.new_page()
     return pw, browser, ctx, pg
 
@@ -206,7 +226,11 @@ def wait_berryhub_ready(pg, tries=15):
                 return True
             txt = pg.evaluate('document.body.innerText') or ""
             if "SafeLine" in txt or "错误拦截" in txt:
-                log(f"雷池拦截门, 第{i+1}次尝试点击确认")
+                try:
+                    iframes = len(pg.frames)
+                    log(f"雷池拦截门, 第{i+1}次尝试点击确认 (frames={iframes})")
+                except Exception:
+                    log(f"雷池拦截门, 第{i+1}次尝试点击确认")
                 pg.evaluate('''() => { const b = [...document.querySelectorAll("button, a, div, span")]
                     .find(e => (e.textContent || '').trim() === "确认");
                     if (b) b.click(); }''')
@@ -413,6 +437,7 @@ def main():
     pw = browser = None
     try:
         pw, browser, ctx, pg = connect_page()
+        pg.goto("https://berryhub.org/", timeout=40000)
         wait_berryhub_ready(pg)
 
         # 1) 侦察最新帖
