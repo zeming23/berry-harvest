@@ -1,0 +1,25 @@
+name: warp-test
+# 验证 macOS runner 上 WARP 安装+proxy 模式 (不接触 berryhub)
+on:
+  workflow_dispatch:
+jobs:
+  warp:
+    runs-on: macos-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install & verify WARP
+        run: |
+          brew install --cask cloudflare-warp 2>&1 | tail -2 || echo "(cask fail)"
+          sleep 6
+          WCLI="/Applications/Cloudflare WARP.app/Contents/MacOS/warp-cli"
+          [ -x "$WCLI" ] || WCLI="$(which warp-cli 2>/dev/null || echo '/Applications/Cloudflare WARP.app/Contents/Resources/warp-cli')"
+          echo "warp-cli: $WCLI"
+          ls "/Applications/Cloudflare WARP.app/Contents/" 2>/dev/null | head
+          "$WCLI" --accept-tos registration new 2>&1 | tail -1 || true
+          "$WCLI" --accept-tos mode proxy 2>&1 | tail -1 || true
+          "$WCLI" --accept-tos connect 2>&1 | tail -1 || true
+          sleep 6
+          "$WCLI" --accept-tos status 2>&1 | tail -2 || true
+          WIP=$(curl -s --max-time 15 --socks5-hostname 127.0.0.1:40000 https://api.ipify.org) && echo "WARP egress IP: $WIP" || echo "(socks5 未就绪)"
+          echo "direct IP: $(curl -s --max-time 10 https://api.ipify.org)"
