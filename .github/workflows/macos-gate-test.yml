@@ -20,7 +20,8 @@ jobs:
         run: |
           pip install --quiet playwright
           npm install electron@44.7.0 --no-audit --no-fund
-          ls node_modules/electron/dist/ | head -5
+          # 二进制可能被 npm 静默跳过, 显式补下载
+          test -d node_modules/electron/dist/Electron.app || node node_modules/electron/install.js
           test -d node_modules/electron/dist/Electron.app || { echo "!! electron missing"; exit 1; }
           echo "electron macOS OK"
       - name: Gate test
