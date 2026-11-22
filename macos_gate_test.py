@@ -3,6 +3,7 @@
 import json, os, subprocess, sys, time, urllib.request
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
+NL = chr(10)
 exe = os.path.abspath("node_modules/electron/dist/Electron.app/Contents/MacOS/Electron")
 proc = subprocess.Popen([exe, os.path.abspath("electron-main.js"), "https://berryhub.org/"],
                         env=dict(os.environ, ELECTRON_CDP_PORT="9223"))
@@ -27,8 +28,7 @@ try:
             verdict += f" wp-json={r}"
             break
         if i in (4, 9, 14):
-            txt = (pg.evaluate("document.body.innerText") or "").replace("
-", " ")[:120]
+            txt = (pg.evaluate("document.body.innerText") or "").replace(NL, " ")[:120]
             print(f"[{i*3}s] title={t!r} txt={txt!r}", flush=True)
     pw.stop()
 finally:
