@@ -255,9 +255,12 @@ def wait_berryhub_ready(pg, tries=15):
                     log(f"雷池拦截门, 第{i+1}次确认 (frames={iframes}, iframes={furls})")
                 except Exception:
                     log(f"雷池拦截门, 第{i+1}次尝试点击确认")
-                pg.evaluate('''() => { const b = [...document.querySelectorAll("button, a, div, span")]
-                    .find(e => (e.textContent || '').trim() === "确认");
-                    if (b) b.click(); }''')
+                pg.evaluate('''() => {
+                    const cands = [...document.querySelectorAll("button, a, [role=button], input[type=button], input[type=submit], div, span")]
+                      .filter(e => /^(确认|confirm|verify|ok)$/i.test((e.textContent || '').trim()))
+                      .sort((a, b) => a.textContent.length - b.textContent.length);
+                    if (cands.length) { let t = cands[0]; while (t.parentElement && t.parentElement.tagName !== "BODY" && cands.includes(t.parentElement)) t = t.parentElement; t.click(); return t.outerHTML.slice(0, 120); }
+                    return "(无按钮)"; }''')
         except Exception:
             pass
         time.sleep(3)
