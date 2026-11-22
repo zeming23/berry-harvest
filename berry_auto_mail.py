@@ -147,6 +147,20 @@ def warp_proxy_available(port=40000):
         return False
 
 
+def kill_tree(proc):
+    """杀掉整个进程树 (xvfb-run/electron)"""
+    try:
+        import signal
+        os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        return
+    except Exception:
+        pass
+    try:
+        proc.kill()
+    except Exception:
+        pass
+
+
 def start_electron(start_url="https://berryhub.org/", force_no_proxy=False):
     is_win = os.name == "nt"
     is_mac = sys.platform == "darwin"
