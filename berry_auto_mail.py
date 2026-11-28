@@ -570,10 +570,9 @@ def main():
             log(f"最新帖 {date} 已过期且今日无新帖, 归档")
             (STATE / "last-post.txt").write_text(link, encoding="utf-8")
             notify("BerryHub 今日无新帖, 系统正常",
-                   f"今天没有发布新一期(他们经常跳更)。
-最近一期 {title} ({date}) 已过期。
-
-系统每日 20:05 自动巡检, 发布日当晚会自动送达链接。")
+                   f"今天没有发布新一期(他们经常跳更)。" + chr(10) * 2 +
+                   f"最近一期 {title} ({date}) 已过期。" + chr(10) +
+                   f"系统每日 20:05 自动巡检, 发布日当晚会自动送达链接。")
             return 0
         log(f"发现新帖! 处理 {link}")
 
