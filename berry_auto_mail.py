@@ -266,32 +266,21 @@ def connect_page():
     return pw, browser, ctx, pg
 
 
-def wait_berryhub_ready(pg, tries=60):
-    """等雷池放行、BerryHub 页面就绪; 遇拦截门自动点「确认」"""
+def wait_berryhub_ready(pg, tries=120):
+    """纯被动等雷池自动放行 (实测约需数分钟; 主动点击反而重置挑战计时, 保持零交互)"""
     for i in range(tries):
         try:
             t = pg.title() or ""
             if "BerryHub" in t:
-                log(f"berryhub 页面就绪 ({i+1} 轮)")
+                log(f"berryhub 页面就绪 ({i*5}s)")
                 return True
-            txt = pg.evaluate('document.body.innerText') or ""
-            if "SafeLine" in txt or "错误拦截" in txt:
-                try:
-                    iframes = len(pg.frames)
-                    furls = [fr.url[:90] for fr in pg.frames[1:]]
-                    log(f"雷池拦截门, 第{i+1}次确认 (frames={iframes}, iframes={furls})")
-                except Exception:
-                    log(f"雷池拦截门, 第{i+1}次尝试点击确认")
-                pg.evaluate('''() => {
-                    const cands = [...document.querySelectorAll("button, a, [role=button], input[type=button], input[type=submit], div, span")]
-                      .filter(e => /^(确认|confirm|verify|ok)$/i.test((e.textContent || '').trim()))
-                      .sort((a, b) => a.textContent.length - b.textContent.length);
-                    if (cands.length) { let t = cands[0]; while (t.parentElement && t.parentElement.tagName !== "BODY" && cands.includes(t.parentElement)) t = t.parentElement; t.click(); return t.outerHTML.slice(0, 120); }
-                    return "(无按钮)"; }''')
+            if i in (12, 36, 72, 108):
+                txt = (pg.evaluate('document.body.innerText') or "").replace(chr(10), " ")[:80]
+                log(f"等待中 {i*5}s: {txt!r}")
         except Exception:
             pass
         time.sleep(5)
-    raise RuntimeError(f"berryhub 未就绪(雷池未放行), 文本={(pg.evaluate('document.body.innerText') or '')[:150]!r}")
+    raise RuntimeError(f"berryhub 未就绪(雷池未放行, 等待600s)")
 
 
 
