@@ -266,7 +266,7 @@ def connect_page():
     return pw, browser, ctx, pg
 
 
-def wait_berryhub_ready(pg, tries=15):
+def wait_berryhub_ready(pg, tries=60):
     """等雷池放行、BerryHub 页面就绪; 遇拦截门自动点「确认」"""
     for i in range(tries):
         try:
@@ -290,7 +290,7 @@ def wait_berryhub_ready(pg, tries=15):
                     return "(无按钮)"; }''')
         except Exception:
             pass
-        time.sleep(3)
+        time.sleep(5)
     raise RuntimeError(f"berryhub 未就绪(雷池未放行), 文本={(pg.evaluate('document.body.innerText') or '')[:150]!r}")
 
 
